@@ -7,7 +7,9 @@ import { VscRobot } from "react-icons/vsc";
 import Sidebar from "./Sidebar";
 import Prism from "prismjs";
 import VoiceMessage from "./VoiceMessage";
+import WelcomeTips from './WelcomeTips';
 import axios from 'axios';
+import { IoMenu, IoClose, IoCall } from "react-icons/io5";
 
 function Chat() {
   const aiSelectRef = useRef(null);
@@ -49,27 +51,14 @@ function Chat() {
     }
   ]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showWelcomeTips, setShowWelcomeTips] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   
   const speechSynthesis = window.speechSynthesis;
   const speechUtterance = new SpeechSynthesisUtterance();
 
   const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-
-  const searchWeb = async (query) => {
-    try {
-      const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
-        params: {
-          key: import.meta.env.VITE_GOOGLE_SEARCH_API_KEY,
-          cx: import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID,
-          q: query
-        }
-      });
-      return response.data.items;
-    } catch (error) {
-      console.error('Search error:', error);
-      throw error;
-    }
-  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -90,38 +79,78 @@ function Chat() {
     scrollToBottom();
   }, [messages]);
 
+  const searchWeb = async (query) => {
+    try {
+      const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+        params: {
+          key: import.meta.env.VITE_GOOGLE_SEARCH_API_KEY,
+          cx: import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID,
+          q: query
+        }
+      });
+      return response.data.items;
+    } catch (error) {
+      throw new Error("⚠️ Web Search error: " + error.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    if (!input.trim() && !filePreview) return;
+    if (!input.trim()) return;
 
     const userMessage = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
       let response;
-      
-      if (activeAI === 'websearch') {
-        const searchResults = await searchWeb(input);
-        response = searchResults
-          .slice(0, 5)
-          .map(item => `${item.title}\n${item.snippet}`)
-          .join('\n\n');
-      } else {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const result = await model.generateContent(input);
-        response = result.response.text();
+      switch (activeAI) {
+        case 'websearch':
+          try {
+            const searchResults = await searchWeb(input);
+            response = searchResults
+              .slice(0, 5)
+              .map(result => (
+                `🔍 ${result.title}\n${result.snippet}\n🔗 ${result.link}`
+              ))
+              .join('\n\n');
+          } catch (error) {
+            throw new Error("⚠️ Web Search: Unable to search. Please check your API key and connection.");
+          }
+          break;
+        case 'gemini':
+          try {
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const result = await model.generateContent(input);
+            response = result.response.text();
+          } catch (error) {
+            if (error.message.includes("Failed to fetch")) {
+              throw new Error("⚠️ No internet connection. Please check your network and try again.");
+            } else {
+              throw new Error("⚠️ Gemini API error: " + error.message);
+            }
+          }
+          break;
+        default:
+          throw new Error("⚠️ Invalid AI model selected");
+      }
+
+      if (!response) {
+        throw new Error("⚠️ No response received. Please try again.");
       }
 
       const assistantMessage = { role: "assistant", content: response };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
       console.error("Error:", error);
-      const errorMessage = error.message || "An error occurred";
-      setMessages((prev) => [...prev, { role: "assistant", content: errorMessage }]);
+      const errorMessage = {
+        role: "assistant",
+        content: error.message,
+        error: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -170,6 +199,28 @@ function Chat() {
   }, [activeChatId]);
 
   const formatMessage = (content) => {
+    if (content.includes('🔍')) {
+      // This is a web search result
+      return content.split('\n\n').map((result, index) => {
+        const [title, snippet, link] = result.split('\n');
+        return (
+          <div key={index} className="search-result">
+            <div className="search-result-title">{title.replace('🔍 ', '')}</div>
+            <div className="search-result-snippet">{snippet}</div>
+            <a 
+              href={link.replace('🔗 ', '')} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="search-result-link"
+            >
+              {link.replace('🔗 ', '')}
+            </a>
+          </div>
+        );
+      });
+    }
+    
+    // Handle regular messages with code blocks
     if (content.includes('```')) {
       const parts = content.split('```');
       return parts.map((part, index) => {
@@ -209,7 +260,7 @@ function Chat() {
       });
     }
 
-    // If no code blocks, still properly format the text
+    // Regular text
     return (
       <div className="text-content">
         {content.split('\n').map((line, i) => (
@@ -295,18 +346,91 @@ function Chat() {
     return formatMessage(message.content);
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
   return (
     <div className={`chat-layout ${theme}`}>
-      <Sidebar
-        chats={chats}
-        activeChat={activeChatId}
-        onNewChat={handleNewChat}
-        onSelectChat={setActiveChatId}
-        onEditChatName={handleEditChatName}
-        onDeleteChat={handleDeleteChat}
-        theme={theme}
-        onThemeChange={setTheme}
+      <button 
+        className={`hamburger-menu ${isSidebarOpen ? 'open' : ''}`}
+        onClick={toggleSidebar}
+      >
+        {isSidebarOpen ? <IoClose size={24} /> : <IoMenu size={24} />}
+  
+      </button>
+
+      <div 
+        className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} 
+        onClick={() => setIsSidebarOpen(false)}
       />
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-content">
+          <button 
+            className="new-chat-btn"
+            onClick={() => {
+              handleNewChat();
+              setIsSidebarOpen(false);
+            }}
+          >
+            + New Chat
+          </button>
+
+          <div className="chats-list">
+            {chats.map((chat) => (
+              <div
+                key={chat.id}
+                className={`chat-item ${chat.id === activeChatId ? 'active' : ''}`}
+              >
+                <span 
+                  onClick={() => {
+                    setActiveChatId(chat.id);
+                    setIsSidebarOpen(false);
+                  }}
+                >
+                  {chat.name}
+                </span>
+                <div className="chat-item-actions">
+                  <button
+                    className="chat-item-btn"
+                    onClick={() => {
+                      const newName = prompt('Enter new name:', chat.name);
+                      if (newName) handleEditChatName(chat.id, newName);
+                    }}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className="chat-item-btn"
+                    onClick={() => handleDeleteChat(chat.id)}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="sidebar-contact">
+          <button 
+            className="contact-toggle"
+            onClick={() => setShowContact(!showContact)}
+          >
+            <IoCall size={20} />
+            <span>Contact</span>
+          </button>
+          
+          {showContact && (
+            <div className="contact-details">
+              <h3>Contact Us</h3>
+              <p>Email: yusufabolaji2007@gmail.com</p>
+              <p>Phone: (234) 815-656-4849</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="chat-container">
         <button className="settings-btn">
           <IoSettingsOutline size={24} />
@@ -403,6 +527,7 @@ function Chat() {
           </div>
         </form>
       </div>
+      {showWelcomeTips && <WelcomeTips onClose={() => setShowWelcomeTips(false)} />}
     </div>
   );
 }

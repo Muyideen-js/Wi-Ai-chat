@@ -1,28 +1,24 @@
+import React from 'react';
 import { IoWarningOutline } from "react-icons/io5";
 
-function ConfirmModal({ isOpen, onClose, onConfirm, aiName }) {
+const ConfirmModal = ({ isOpen, onClose, onConfirm, aiName }) => {
   if (!isOpen) return null;
 
   return (
     <div className="confirm-overlay">
       <div className="confirm-modal">
         <div className="confirm-icon">
-          <IoWarningOutline size={40} />
+          <IoWarningOutline size={30} />
         </div>
-        <h3>Switch AI Model?</h3>
-        <p>Are you sure you want to switch to <span className="ai-name">{aiName}</span>?</p>
-        <p className="confirm-note">Your current conversation will continue with the new AI.</p>
+        <h3>Switch to {aiName}?</h3>
+        <p>Your current conversation will continue with {aiName}</p>
         <div className="confirm-buttons">
-          <button onClick={onClose} className="cancel-btn">
-            Cancel
-          </button>
-          <button onClick={onConfirm} className="confirm-btn">
-            Yes, Switch
-          </button>
+          <button className="cancel-btn" onClick={onClose}>Cancel</button>
+          <button className="confirm-btn" onClick={onConfirm}>Switch</button>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default ConfirmModal;
