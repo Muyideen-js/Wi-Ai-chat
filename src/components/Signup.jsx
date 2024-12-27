@@ -1,7 +1,4 @@
-import { useState } from 'react';
-import axios from 'axios';
 
-function Signup({ onSignup }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,6 +48,5 @@ function Signup({ onSignup }) {
       </div>
     </div>
   );
-}
 
 export default Signup;

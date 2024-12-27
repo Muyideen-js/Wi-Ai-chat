@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React from 'react';
+import { IoAdd } from "react-icons/io5";
 
 function Sidebar({ chats, activeChat, onNewChat, onSelectChat, onEditChatName, onDeleteChat }) {
   return (
@@ -21,8 +22,7 @@ function Sidebar({ chats, activeChat, onNewChat, onSelectChat, onEditChatName, o
                 className="chat-item-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const newName = prompt('Enter new name:', chat.name);
-                  if (newName) onEditChatName(chat.id, newName);
+                  onEditChatName(chat.id, prompt('Enter new name:', chat.name));
                 }}
               >
                 ✏️

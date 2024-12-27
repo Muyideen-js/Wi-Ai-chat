@@ -6,29 +6,23 @@ import { IoSend } from "react-icons/io5";
 import { VscRobot } from "react-icons/vsc";
 import Sidebar from "./Sidebar";
 import Prism from "prismjs";
-import { OpenAI } from 'openai';
-import { Anthropic } from '@anthropic-ai/sdk';
-import ConfirmModal from './ConfirmModal';
+import VoiceMessage from "./VoiceMessage";
+import axios from 'axios';
 
 function Chat() {
   const aiSelectRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const aiModels = {
+    websearch: {
+      name: 'Web Search',
+      model: 'web-search',
+      api: 'google-search',
+    },
     gemini: {
       name: 'Gemini',
       model: 'gemini-pro',
       api: 'google',
-    },
-    gpt: {
-      name: 'ChatGPT',
-      model: 'gpt-3.5-turbo',
-      api: 'openai',
-    },
-    claude: {
-      name: 'Claude',
-      model: 'claude-2',
-      api: 'anthropic',
     }
   };
 
@@ -54,20 +48,28 @@ function Chat() {
       timestamp: new Date().toISOString()
     }
   ]);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingAI, setPendingAI] = useState(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  const speechSynthesis = window.speechSynthesis;
+  const speechUtterance = new SpeechSynthesisUtterance();
 
   const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
-  const openai = new OpenAI({
-    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true
-  });
-
-  const anthropic = new Anthropic({
-    apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
-    dangerouslyAllowBrowser: true
-  });
+  const searchWeb = async (query) => {
+    try {
+      const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+        params: {
+          key: import.meta.env.VITE_GOOGLE_SEARCH_API_KEY,
+          cx: import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID,
+          q: query
+        }
+      });
+      return response.data.items;
+    } catch (error) {
+      console.error('Search error:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -90,47 +92,36 @@ function Chat() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    e.stopPropagation();
+    if (!input.trim() && !filePreview) return;
 
     const userMessage = { role: "user", content: input };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
       let response;
       
-      switch (activeAI) {
-        case 'gemini':
-          const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-          const result = await model.generateContent(input);
-          response = result.response.text();
-          break;
-
-        case 'gpt':
-          const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: input }],
-          });
-          response = completion.choices[0].message.content;
-          break;
-
-        case 'claude':
-          const message = await anthropic.messages.create({
-            model: "claude-3-opus-20240229",
-            max_tokens: 1000,
-            messages: [{ role: "user", content: input }],
-            system: "You are a helpful AI assistant."
-          });
-          response = message.content[0].text;
-          break;
+      if (activeAI === 'websearch') {
+        const searchResults = await searchWeb(input);
+        response = searchResults
+          .slice(0, 5)
+          .map(item => `${item.title}\n${item.snippet}`)
+          .join('\n\n');
+      } else {
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const result = await model.generateContent(input);
+        response = result.response.text();
       }
 
       const assistantMessage = { role: "assistant", content: response };
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev, assistantMessage]);
 
     } catch (error) {
       console.error("Error:", error);
+      const errorMessage = error.message || "An error occurred";
+      setMessages((prev) => [...prev, { role: "assistant", content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
@@ -231,16 +222,77 @@ function Chat() {
     );
   };
 
-  const handleAISwitch = (aiKey) => {
-    setPendingAI(aiKey);
-    setShowConfirm(true);
-    setIsAISelectOpen(false);
+  const speakMessage = (text) => {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    
+    speechUtterance.text = text;
+    speechUtterance.onend = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    speechSynthesis.speak(speechUtterance);
   };
 
-  const confirmAISwitch = () => {
-    setActiveAI(pendingAI);
-    setShowConfirm(false);
-    setPendingAI(null);
+  const handleVoiceSubmit = async (audioBlob) => {
+    setIsLoading(true);
+    try {
+      // Convert audio blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result;
+        
+        // Add voice message to chat
+        const voiceMessage = {
+          role: "user",
+          content: "🎤 Voice Message",
+          audio: base64Audio
+        };
+        
+        setMessages(prev => [...prev, voiceMessage]);
+        
+        // Here you would typically send the audio to a speech-to-text API
+        // For now, we'll just add a placeholder response
+        const response = "I received your voice message! Once you integrate with a speech-to-text API, I'll be able to understand and respond to it.";
+        
+        const assistantMessage = {
+          role: "assistant",
+          content: response
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+      };
+    } catch (error) {
+      console.error("Error processing voice message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const MessageContent = ({ message }) => {
+    if (message.role === "assistant") {
+      return (
+        <div className="message-content-wrapper">
+          {formatMessage(message.content)}
+          <button 
+            className={`speak-btn ${isSpeaking ? 'speaking' : ''}`}
+            onClick={() => speakMessage(message.content)}
+          >
+            {isSpeaking ? '🔊' : '🔈'}
+          </button>
+        </div>
+      );
+    }
+    
+    if (message.audio) {
+      return (
+        <div className="voice-message-player">
+          <audio controls src={message.audio} />
+        </div>
+      );
+    }
+    
+    return formatMessage(message.content);
   };
 
   return (
@@ -279,7 +331,7 @@ function Chat() {
                       <img src={message.file} alt="Uploaded file" />
                     </div>
                   )}
-                  <div className="message-content">{formatMessage(message.content)}</div>
+                  <div className="message-content">{MessageContent({ message })}</div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -308,6 +360,8 @@ function Chat() {
               />
             </label>
             
+            <VoiceMessage onVoiceSubmit={handleVoiceSubmit} />
+            
             <div className="custom-select" ref={aiSelectRef}>
               <button
                 type="button"
@@ -323,7 +377,10 @@ function Chat() {
                     <button
                       key={key}
                       className={`select-option ${activeAI === key ? 'active' : ''}`}
-                      onClick={() => handleAISwitch(key)}
+                      onClick={() => {
+                        setActiveAI(key);
+                        setIsAISelectOpen(false);
+                      }}
                       type="button"
                     >
                       {ai.name}
@@ -340,18 +397,11 @@ function Chat() {
               placeholder="Type your message..."
               disabled={isLoading}
             />
-          <button type="submit" disabled={isLoading}>
-            <IoSend size={20} />
-          </button>
+            <button type="submit" disabled={isLoading}>
+              <IoSend size={20} />
+            </button>
           </div>
         </form>
-
-        <ConfirmModal
-          isOpen={showConfirm}
-          onClose={() => setShowConfirm(false)}
-          onConfirm={confirmAISwitch}
-          aiName={pendingAI ? aiModels[pendingAI].name : ''}
-        />
       </div>
     </div>
   );

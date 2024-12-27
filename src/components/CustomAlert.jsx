@@ -1,3 +1,6 @@
+import React from 'react';
+import '../styles/CustomAlert.css';
+import '../styles/Modal.css';
 import { IoCloseCircleOutline } from 'react-icons/io5';
 
 function CustomAlert({ message, onClose }) {

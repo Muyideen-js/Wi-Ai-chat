@@ -948,3 +948,119 @@ button[type="submit"]:hover {
     box-shadow: 0 0 0 0 rgba(247, 179, 5, 0);
   }
 }
+
+/* Voice Message Styles */
+.voice-message-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.voice-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(247, 179, 5, 0.1);
+  color: var(--gold-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.voice-btn:hover {
+  background: rgba(247, 179, 5, 0.2);
+  transform: scale(1.05);
+}
+
+.voice-btn.recording {
+  background: #ff4444;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+.voice-btn.send {
+  background: var(--gold-primary);
+  color: white;
+}
+
+.voice-message-player {
+  background: rgba(247, 179, 5, 0.1);
+  padding: 0.5rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.voice-message-player audio {
+  width: 100%;
+}
+
+.message-content-wrapper {
+  position: relative;
+}
+
+.speak-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.speak-btn:hover {
+  opacity: 1;
+}
+
+.speak-btn.speaking {
+  animation: speaking 1s infinite;
+}
+
+@keyframes speaking {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); }
+}
+.sources {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 8px;
+}
+
+.sources h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.sources ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: none;
+}
+
+.sources li {
+  margin-bottom: 5px;
+}
+
+.sources a {
+  color: var(--gold-primary);
+  text-decoration: none;
+  display: block;
+  padding: 5px 0;
+}
+
+.sources a:hover {
+  text-decoration: underline;
+}
